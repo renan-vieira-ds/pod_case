@@ -1,0 +1,28 @@
+# Byte-compiled / compiled / package files
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual env
+venv/
+env/
+.venv/
+
+# Jupyter notebooks
+*.ipynb
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# AWS SAM / build artifacts
+.aws-sam/
+*.log
+samconfig.toml
+
+# Local environment / secrets
+.env
+local-env.json
+event.json
+processed_docs.json

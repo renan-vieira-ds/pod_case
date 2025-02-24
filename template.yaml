@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  MyApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+
+  StarWarsLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      Runtime: python3.10
+      CodeUri: lambda/
+      MemorySize: 1024
+      Timeout: 120
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-west-2:565393051689:secret:myproject/starwars-rHHO2e:SecretString:OPENAI_API_KEY}}'
+          PINECONE_API_KEY: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-west-2:565393051689:secret:myproject/starwars-rHHO2e:SecretString:PINECONE_API_KEY}}'
+          PINECONE_ENV: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-west-2:565393051689:secret:myproject/starwars-rHHO2e:SecretString:PINECONE_ENV}}'
+      Events:
+        StarWarsApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MyApi
+            Path: /historia
+            Method: POST
+
+Outputs:
+  ApiUrl:
+    Description: "URL do endpoint"
+    Value: !Sub "https://${MyApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/historia"
