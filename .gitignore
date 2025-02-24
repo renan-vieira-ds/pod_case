@@ -26,3 +26,5 @@ samconfig.toml
 local-env.json
 event.json
 processed_docs.json
+
+.tool-versions
