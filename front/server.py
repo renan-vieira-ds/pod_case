@@ -51,8 +51,8 @@ def gerar():
     }
 
     # URL do seu endpoint Lambda (local ou produção)
-    lambda_url = 'https://f3riutkvbi.execute-api.us-west-2.amazonaws.com/Prod/historia'
-    # lambda_url = "http://127.0.0.1:3000/historia"
+    # lambda_url = 'https://f3riutkvbi.execute-api.us-west-2.amazonaws.com/Prod/historia'
+    lambda_url = "http://127.0.0.1:3000/historia"
 
     try:
         resp = requests.post(lambda_url, json=payload)
@@ -67,6 +67,20 @@ def gerar():
 <head>
   <meta charset="UTF-8"/>
   <title>História Gerada</title>
+  <style>
+    pre {{
+      white-space: pre-wrap;       /* quebra de linha para navegadores modernos */
+      white-space: -moz-pre-wrap;  /* para Firefox */
+      white-space: -pre-wrap;      /* para versões antigas do Opera */
+      white-space: -o-pre-wrap;    /* para Opera */
+      word-wrap: break-word;       /* para IE e Edge */
+      max-width: 100%;
+    }}
+    body {{
+      margin: 20px;
+      font-family: Arial, sans-serif;
+    }}
+  </style>
 </head>
 <body>
   <h2>História Gerada:</h2>

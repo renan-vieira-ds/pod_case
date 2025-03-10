@@ -51,7 +51,7 @@ def lambda_handler(event, context):
             openai_api_key=os.environ["OPENAI_API_KEY"],
             model_name="gpt-3.5-turbo",
             temperature=0.7,
-            max_tokens=800
+            max_tokens=2500
         )
 
         # 4) VectorStore do langchain_community
@@ -63,7 +63,7 @@ def lambda_handler(event, context):
 
          # 5) Fazer apenas UMA busca
         query_text = " ".join(personagens + planetas + naves)
-        docs = vectorstore.similarity_search(query_text, k=3)
+        docs = vectorstore.similarity_search(query_text, k=6)
         if not docs:
             return {
                 "statusCode": 400,
@@ -82,10 +82,19 @@ def lambda_handler(event, context):
 
         human_msg = HumanMessage(content=(
             f"Contexto:\n{context_text}\n\n"
-            f"Crie uma narrativa de Star Wars envolvendo os personagens: {personagens_str}, "
-            f"nos planetas: {planetas_str}, com as naves: {naves_str}.\n\n"
-            "A história deve entregar uma narrativa incrível e imersiva para um star war fan"
+            "Você é um contador de histórias experiente no universo de Star Wars. Com base no contexto fornecido crie uma narrativa de aventura épica que siga uma jornada clara. A história deve conter as seguintes partes:\n\n"
+            "1. Introdução: Apresente o personagem principal (por exemplo, Luke) e o conflito ou missão que o impulsiona.\n"
+            "2. Desenvolvimento: Descreva os desafios, obstáculos e reviravoltas que o herói enfrenta, mostrando como os traços de personalidade influenciam suas decisões e relações com os demais personagens.\n"
+            "3. Clímax: Conduza a narrativa a um ponto de alta tensão, onde o herói se depara com uma escolha crítica ou um desafio decisivo.\n"
+            "4. Desfecho: Conclua a jornada com uma resolução que evidencie a transformação do personagem e o impacto da aventura.\n\n"
+            f"Não obstante,não discrimine no texto estas partes, i.e., o texto não deve explicitar as partes da história. Elementos para incorporar:\n"
+            f"- Personagens: {personagens_str}\n"
+            f"- Planetas: {planetas_str}\n"
+            f"- Naves: {naves_str}\n\n"
+            "Priorize o desenvolvimento do enredo e a evolução dos personagens, evitando descrições excessivas de cenários sem avanço na narrativa. Garanta que a história tenha um fluxo coerente e um desfecho satisfatório para os conflitos apresentados."
         ))
+
+
 
         # 9) Envia as mensagens ao LLM
         response = llm([human_msg])
