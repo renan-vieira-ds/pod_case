@@ -51,8 +51,8 @@ def gerar():
     }
 
     # URL do seu endpoint Lambda (local ou produção)
-    # lambda_url = 'https://f3riutkvbi.execute-api.us-west-2.amazonaws.com/Prod/historia'
-    lambda_url = "http://127.0.0.1:3000/historia"
+    lambda_url = 'https://f3riutkvbi.execute-api.us-west-2.amazonaws.com/Prod/historia'
+    # lambda_url = "http://127.0.0.1:3000/historia"
 
     try:
         resp = requests.post(lambda_url, json=payload)

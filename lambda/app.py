@@ -82,7 +82,7 @@ def lambda_handler(event, context):
 
         human_msg = HumanMessage(content=(
             f"Contexto:\n{context_text}\n\n"
-            "Você é um contador de histórias experiente no universo de Star Wars. Com base no contexto fornecido crie uma narrativa de aventura épica que siga uma jornada clara. A história deve conter as seguintes partes:\n\n"
+            "Você é um contador de histórias experiente no universo de Star Wars. Com base no contexto fornecido, que pode conter elementos de personalidade de personagens e informaçoes canonica da swapi, crie uma narrativa de aventura épica que siga uma jornada clara. A história deve conter as seguintes partes:\n\n"
             "1. Introdução: Apresente o personagem principal (por exemplo, Luke) e o conflito ou missão que o impulsiona.\n"
             "2. Desenvolvimento: Descreva os desafios, obstáculos e reviravoltas que o herói enfrenta, mostrando como os traços de personalidade influenciam suas decisões e relações com os demais personagens.\n"
             "3. Clímax: Conduza a narrativa a um ponto de alta tensão, onde o herói se depara com uma escolha crítica ou um desafio decisivo.\n"
