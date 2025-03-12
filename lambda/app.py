@@ -1,12 +1,35 @@
-import os
 import json
-from typing import List
 
+import boto3
 from pinecone import Pinecone
 from langchain_pinecone import PineconeVectorStore  
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.schema import HumanMessage
 
+
+# Inicializar cliente do AWS Secrets Manager e SSM
+session = boto3.session.Session()
+
+secret_client = session.client(
+    service_name="secretsmanager",
+    region_name="us-west-2"
+)
+ssm_client = session.client(
+    service_name="ssm",
+    region_name="us-west-2"
+)
+
+def get_secret_arn():
+    """Busca o ARN do segredo no AWS SSM Parameter Store na AWS"""
+    response = ssm_client.get_parameter(Name="/myproject/starwars/secret-arn", WithDecryption=True)
+    return response["Parameter"]["Value"]
+
+def get_secret(secret_key):
+    """Busca o valor do segredo no AWS Secrets Manager."""
+    secret_arn = get_secret_arn()
+    response = secret_client.get_secret_value(SecretId=secret_arn)
+    secret_data = json.loads(response["SecretString"])
+    return secret_data.get(secret_key)
 
 def lambda_handler(event, context):
     try:
@@ -32,23 +55,28 @@ def lambda_handler(event, context):
                     })
                 }
 
-        personagens = body["personagens"]  # lista de strings
-        planetas = body["planetas"]        # lista de strings
-        naves = body["naves"]             # lista de strings
+        personagens = body["personagens"]
+        planetas = body["planetas"]      
+        naves = body["naves"]            
 
+        # Buscar segredos do AWS Secrets Manager
+        openai_api_key = get_secret("OPENAI_API_KEY")
+        pinecone_api_key = get_secret("PINECONE_API_KEY")
+        pinecone_env = get_secret("PINECONE_ENV")
+        
         # 2) Conexão com Pinecone
         pc = Pinecone(
-            api_key=os.environ["PINECONE_API_KEY"],
-            environment=os.environ["PINECONE_ENV"]
+            api_key=pinecone_api_key,
+            environment=pinecone_env
         )
 
         # 3) Embeddings e LLM (via langchain_openai)
         embeddings = OpenAIEmbeddings(
-            openai_api_key=os.environ["OPENAI_API_KEY"],
+            openai_api_key=openai_api_key,
             model="text-embedding-ada-002"
         )
         llm = ChatOpenAI(
-            openai_api_key=os.environ["OPENAI_API_KEY"],
+            openai_api_key=openai_api_key,
             model_name="gpt-3.5-turbo",
             temperature=0.7,
             max_tokens=2500

@@ -15,11 +15,17 @@ Resources:
       CodeUri: lambda/
       MemorySize: 1024
       Timeout: 120
-      Environment:
-        Variables:
-          OPENAI_API_KEY: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-west-2:565393051689:secret:myproject/starwars-rHHO2e:SecretString:OPENAI_API_KEY}}'
-          PINECONE_API_KEY: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-west-2:565393051689:secret:myproject/starwars-rHHO2e:SecretString:PINECONE_API_KEY}}'
-          PINECONE_ENV: !Sub '{{resolve:secretsmanager:arn:aws:secretsmanager:us-west-2:565393051689:secret:myproject/starwars-rHHO2e:SecretString:PINECONE_ENV}}'
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - ssm:GetParameter
+            Resource: "*"
+        - Statement:
+            Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: "*"
       Events:
         StarWarsApi:
           Type: Api

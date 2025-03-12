@@ -12,12 +12,15 @@ Este projeto implementa um sistema de IA generativa para criar histórias no uni
 ```
 pod_case/
   ├── ingest/
-  │   ├── ingest_swapi.py        # Script de ingestão offline no Pinecone
+  │   ├── ingest_data.py          # Script de ingestão offline no Pinecone
+      ├── swapi_preprocessor.py   # Preprocessamento da swapi
+      ├── ingest_personality.py   # Ingestão offline das biografias de personagens no Pinecone
   ├── lambda/
   │   ├── app.py                 # Código principal da Lambda
   │   ├── requirements.txt       # Dependências
   ├── local_frontend/
   │   ├── server.py              # Servidor Flask para interface local
+  ├── Makefile                   # Makefile para automatizar operações com SAM
   ├── event.json                 # Exemplo de evento API Gateway (para sam local invoke)
   ├── template.yaml              # Template SAM
   └── README.md                  # Este README
@@ -26,7 +29,7 @@ pod_case/
 # 3. Ingestão de Dados (Offline)
 
 ## 3.1 Objetivo
-Carregar dados preprocessados da SWAPI no Pinecone, gerando o índice que a Lambda consultará.
+Carregar dados preprocessados da SWAPI no e de biografias de personagens no Pinecone, gerando o índice que a Lambda consultará.
 
 ## 3.2 Passos
 1. Configurar suas variáveis de ambiente (chaves Pinecone, etc.).
@@ -35,6 +38,7 @@ Carregar dados preprocessados da SWAPI no Pinecone, gerando o índice que a Lamb
 cd ingest
 python swapi_preprocessor.py
 python ingest_data.py
+python ingest_personality.py
 ```
 > **NOTE**: Essa etapa não é executada dentro da Lambda. É um processamento offline e prévio ao deploy da lambda function 
 
@@ -43,7 +47,7 @@ python ingest_data.py
 
 1. Instalar o SAM CLI.
 2. Editar lambda/requirements.txt se necessário.
-3. Build:
+3. Qualquer alteração em lambda/app.py, lambda/requirements.txt ou templatee.yaml requer um build:
 ```
 sam build
 ```
@@ -76,7 +80,6 @@ Para testar individualmente a função Lambda sem iniciar a rota:
 ```
 
 2. Invocar:
-1. Criar/editar `event.json` (simulando body do API Gateway):
 ```
 sam build
 sam local invoke "StarWarsLambda" --event event.json
@@ -102,13 +105,17 @@ python server.py
 
 # 6. Deploy com SAM
 
-1. Configurar suas credenciais AWS (`aws configure`) e ter as chaves e api (Pinecone/OpenAI) em um segredo na Secrets Manager
-> **NOTE 1**: crie o segredo na mesma regiao q ue vc vai deployar a lambda
-> **NOTE 2**: No template em `Environment/Variables` use o arn completo criado pro segredo (no consosle tem o arn)
+1. Configurar suas credenciais AWS (`aws configure`) 
+2. Guardar suas chaves de api (Pinecone/OpenAI) em um segredo na Secrets Manager
+> **NOTE 1**: crie o segredo na mesma regiao q ue vc vai deployar a lambda e **guarde o arn do segredo**.
 
-2. Build:
+> **NOTE 2**: O arn do segredo deve ser guardado no ssm parameter store para ser acessado pela lambda. Isso evita expor o arn.
+
+> **NOTE 3**: No template na sua função lambda, crie a política de acesso ao ssm e ao segredo, como no template deste projeto.
+
+3. Guardar o arn do segredo no ssm:
 ```
-sam build
+aws ssm put-parameter --name <SECRET_ARN_NAME> --value <SECRET_ARN_VALUE> --type String --region <AWS_REGION> --overwrite
 ```
 3. Deploy:
 ```
@@ -122,4 +129,26 @@ sam deploy --guided
 curl -X POST -H "Content-Type: application/json" \
   -d '{"personagens":["Luke"],"planetas":["Tatooine"],"naves":["X-Wing"]}' \
   https://xxxxx.execute-api.us-west-2.amazonaws.com/Prod/historia
+```
+
+# 7. Usando comandos make
+
+1. Guardar o arn do segredo no ssm:
+```
+make setup-local SECRET_ARN_NAME=<SECRET_ARN_NAME> SECRET_ARN_VALUE=<SECRET_ARN_VALUE> AWS_REGION=<AWS_REGION>
+```
+
+2.Testando local uma única vez:
+```
+make test-local
+```
+
+3. Rodando o lambda localnemente:
+```
+make start-local
+```
+
+4. Deployando na aws:
+```
+make deploy
 ```
