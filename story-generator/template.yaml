@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  story-generator
+
+  Gerador de histórias Star Wars usando Step Functions e Bedrock
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues:
+      - staging
+      - production
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.10
+    Tracing: Active
+    LoggingConfig:
+      LogFormat: JSON
+  Api:
+    TracingEnabled: true
+
+Resources:
+  # API Gateway + Lambda
+  StoryApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref Environment
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+        AllowHeaders:
+          - '*'
+
+  StoryApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/api
+      Handler: handler.lambda_handler
+      Runtime: python3.10
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          STORY_STATE_MACHINE_ARN: !Ref StoryStateMachine
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action: 
+                - states:StartExecution
+                - states:DescribeExecution
+              Resource: 
+                - !Ref StoryStateMachine
+                - !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:${StoryStateMachine.Name}:*"
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref StoryApi
+            Path: /historia
+            Method: POST
+        StatusEvent:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref StoryApi
+            Path: /historia/{pedido_id}
+            Method: GET
+
+  # Step Function
+  StoryStepFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionInvokeLambdas
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt FetchContextFunction.Arn
+                  - !GetAtt GenerateStoryFunction.Arn
+
+  StoryStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      DefinitionSubstitutions:
+        FetchContextFunctionArn: !GetAtt FetchContextFunction.Arn
+        GenerateStoryFunctionArn: !GetAtt GenerateStoryFunction.Arn
+      Definition:
+        Comment: Fluxo de geração de histórias Star Wars
+        StartAt: ValidarEntrada
+        States:
+          ValidarEntrada:
+            Type: Choice
+            Choices:
+              - And:
+                  - Variable: $.personagens
+                    IsPresent: true
+                  - Variable: $.planetas
+                    IsPresent: true
+                  - Variable: $.naves
+                    IsPresent: true
+                Next: BuscarContexto
+            Default: ErroValidacao
+          
+          ErroValidacao:
+            Type: Fail
+            Error: InputValidationError
+            Cause: Campos obrigatórios ausentes
+          
+          BuscarContexto:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: ${FetchContextFunctionArn}
+              Payload.$: $
+            ResultPath: $.contexto
+            Next: GerarHistoria
+            Retry:
+              - ErrorEquals: ["States.ALL"]
+                IntervalSeconds: 2
+                MaxAttempts: 3
+                BackoffRate: 2.0
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                Next: ErroContexto
+          
+          ErroContexto:
+            Type: Fail
+            Error: ContextFetchError
+            Cause: Erro ao buscar contexto no Pinecone
+          
+          GerarHistoria:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: ${GenerateStoryFunctionArn}
+              Payload.$: $
+            End: true
+            Retry:
+              - ErrorEquals: ["States.ALL"]
+                IntervalSeconds: 2
+                MaxAttempts: 3
+                BackoffRate: 2.0
+            Catch:
+              - ErrorEquals: ["States.ALL"]
+                Next: ErroGeracao
+          
+          ErroGeracao:
+            Type: Fail
+            Error: StoryGenerationError
+            Cause: Erro ao gerar história
+      Role: !GetAtt StoryStepFunctionRole.Arn
+
+  # Lambdas de processamento
+  FetchContextFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/fetch_context/
+      Handler: handler.lambda_handler
+      Runtime: python3.10
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          PINECONE_API_KEY: !Sub '{{resolve:secretsmanager:myproject/starwars:SecretString:PINECONE_API_KEY}}'
+          PINECONE_ENV: !Sub '{{resolve:secretsmanager:myproject/starwars:SecretString:PINECONE_ENV}}'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource: '*'
+            - Effect: Allow
+              Action: secretsmanager:GetSecretValue
+              Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:myproject/starwars-rHHO2e'
+    Metadata:
+      BuildMethod: python3.10
+
+  GenerateStoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/lambdas/generate_story/
+      Handler: handler.lambda_handler
+      Runtime: python3.10
+      Architectures:
+        - arm64
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock-runtime:InvokeModel
+              Resource: '*'
+    Metadata:
+      BuildMethod: python3.10
+
+  ApplicationResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties:
+      Name:
+        Fn::Sub: ApplicationInsights-SAM-${AWS::StackName}
+      ResourceQuery:
+        Type: CLOUDFORMATION_STACK_1_0
+
+  ApplicationInsightsMonitoring:
+    Type: AWS::ApplicationInsights::Application
+    Properties:
+      ResourceGroupName:
+        Ref: ApplicationResourceGroup
+      AutoConfigurationEnabled: 'true'
+
+Outputs:
+  ApiUrl:
+    Description: URL da API
+    Value: !Sub https://${StoryApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/
+  StateMachineArn:
+    Description: ARN da Step Function
+    Value: !Ref StoryStateMachine
